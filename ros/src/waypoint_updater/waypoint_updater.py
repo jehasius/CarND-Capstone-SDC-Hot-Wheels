@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
+
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 
@@ -21,7 +22,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 200  # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
@@ -32,21 +33,40 @@ class WaypointUpdater(object):
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-
+        # rospy.Subscriber('/traffic_waypoint',  Int32, self.traffic_cb)
+        # rospy.Subscriber('/obstacle_waypoint', Int32, self.obstacle_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         # TODO: Add other member variables you need below
 
-        rospy.spin()
+        self.last_pose = None
+        self.last_waypoints = None
+
+        rate = rospy.Rate(10)  # define a 10Hz timer
+        while not rospy.is_shutdown():
+            self.main_loop()  # execute main loop
+            rate.sleep()      # waiting till the next time-slot
+
+    def main_loop(self):
+        # check that we received callbacks 'pose_cb' and 'waypoints_cb':
+        if self.last_waypoints is not None and self.last_pose is not None:
+            lane = Lane()
+            lane.header.stamp = rospy.Time().now()
+            lane.header.frame_id = '/world'
+
+            # calculate next and all following waypoints:
+            waypoints = self.last_waypoints.waypoints
+            next_wp = self.get_closest_waypoint(self.last_pose, waypoints)
+            lane.waypoints = self.get_next_waypoints(waypoints, next_wp, next_wp + LOOKAHEAD_WPS)
+
+            self.final_waypoints_pub.publish(lane)
 
     def pose_cb(self, msg):
-        # TODO: Implement
-        pass
+        self.last_pose = msg
 
-    def waypoints_cb(self, waypoints):
-        # TODO: Implement
-        pass
+    def waypoints_cb(self, msg):
+        self.last_waypoints = msg
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
@@ -62,13 +82,37 @@ class WaypointUpdater(object):
     def set_waypoint_velocity(self, waypoints, waypoint, velocity):
         waypoints[waypoint].twist.twist.linear.x = velocity
 
+    def raw_dist(self, wp1, wp2):
+        return math.sqrt((wp1.x - wp2.x)**2 + (wp1.y - wp2.y)**2 + (wp1.z - wp2.z)**2)
+
     def distance(self, waypoints, wp1, wp2):
         dist = 0
-        dl = lambda a, b: math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
         for i in range(wp1, wp2+1):
-            dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
+            dist += self.raw_dist(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
             wp1 = i
         return dist
+
+    def get_closest_waypoint(self, pose, waypoints):
+        # get closest waypoint:
+        curr_dist_to_wp = lambda wp: self.raw_dist(pose.pose.position, wp.pose.pose.position)
+        closest_wp = min(waypoints, key=curr_dist_to_wp)
+        closest_idx = waypoints.index(closest_wp)  # TODO: there should be a better way to do this!?!
+
+        # check if closest_wp is behind us:
+        dist_between_next_wps = self.distance(waypoints, closest_idx, closest_idx+1)
+        dist_to_next_wp = curr_dist_to_wp(waypoints[closest_idx+1])
+        if dist_to_next_wp < dist_between_next_wps:
+            closest_idx += 1
+
+        return closest_idx
+
+    def get_next_waypoints(self, waypoints, start_wp, end_wp):
+        next_waypoints = []
+        for i in range(start_wp, end_wp):
+            idx = i % len(waypoints)  # be able to loop around the track
+            next_waypoints.append(waypoints[idx])
+
+        return next_waypoints
 
 
 if __name__ == '__main__':
