@@ -82,13 +82,17 @@ class WaypointUpdater(object):
     def set_waypoint_velocity(self, waypoints, waypoint, velocity):
         waypoints[waypoint].twist.twist.linear.x = velocity
 
+    def sanitize_wp_index(self, wp_idx):
+        return wp_idx % len(self.last_waypoints.waypoints)
+
     def raw_dist(self, wp1, wp2):
         return math.sqrt((wp1.x - wp2.x)**2 + (wp1.y - wp2.y)**2 + (wp1.z - wp2.z)**2)
 
     def distance(self, waypoints, wp1, wp2):
         dist = 0
         for i in range(wp1, wp2+1):
-            dist += self.raw_dist(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
+            dist += self.raw_dist(waypoints[self.sanitize_wp_index(wp1)].pose.pose.position,
+                                  waypoints[self.sanitize_wp_index(i)].pose.pose.position)
             wp1 = i
         return dist
 
@@ -99,18 +103,18 @@ class WaypointUpdater(object):
         closest_idx = waypoints.index(closest_wp)  # TODO: there should be a better way to do this!?!
 
         # check if closest_wp is behind us:
-        dist_between_next_wps = self.distance(waypoints, closest_idx, closest_idx+1)
-        dist_to_next_wp = curr_dist_to_wp(waypoints[closest_idx+1])
-        if dist_to_next_wp < dist_between_next_wps:
-            closest_idx += 1
+        next_wp_idx = self.sanitize_wp_index(closest_idx+1)
+        dist_between_next_wps = self.distance(waypoints, closest_idx, closest_idx+1)  # don't sanitize here
+        dist_to_next_wp = curr_dist_to_wp(waypoints[next_wp_idx])
 
-        return closest_idx
+        # TODO: Will need to make this check more robust when we're deviating from the path.
+        #       e.g. current position is exactly perpendicular next to clostest_wp
+        return next_wp_idx if dist_to_next_wp < dist_between_next_wps else closest_idx
 
     def get_next_waypoints(self, waypoints, start_wp, end_wp):
         next_waypoints = []
-        for i in range(start_wp, end_wp):
-            idx = i % len(waypoints)  # be able to loop around the track
-            next_waypoints.append(waypoints[idx])
+        for idx in range(start_wp, end_wp):
+            next_waypoints.append(waypoints[self.sanitize_wp_index(idx)])
 
         return next_waypoints
 
