@@ -29,6 +29,10 @@ class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
 
+        # Subscribe to all the topics you need and initialize corresponding variables:
+        self.last_pose = None
+        self.last_waypoints = None
+
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
@@ -38,29 +42,25 @@ class WaypointUpdater(object):
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
-        # TODO: Add other member variables you need below
-
-        self.last_pose = None
-        self.last_waypoints = None
-
-        rate = rospy.Rate(10)  # define a 10Hz timer
-        while not rospy.is_shutdown():
-            self.main_loop()  # execute main loop
-            rate.sleep()      # waiting till the next time-slot
+        self.main_loop()
 
     def main_loop(self):
-        # check that we received callbacks 'pose_cb' and 'waypoints_cb':
-        if self.last_waypoints is not None and self.last_pose is not None:
-            lane = Lane()
-            lane.header.stamp = rospy.Time().now()
-            lane.header.frame_id = '/world'
+        rate = rospy.Rate(10)  # define a 10Hz timer
+        while not rospy.is_shutdown():
+            # check that we received callbacks 'pose_cb' and 'waypoints_cb':
+            if self.last_waypoints is not None and self.last_pose is not None:
+                lane = Lane()
+                lane.header.stamp = rospy.Time().now()
+                lane.header.frame_id = '/world'
 
-            # calculate next and all following waypoints:
-            waypoints = self.last_waypoints.waypoints
-            next_wp = self.get_closest_waypoint(self.last_pose, waypoints)
-            lane.waypoints = self.get_next_waypoints(waypoints, next_wp, next_wp + LOOKAHEAD_WPS)
+                # calculate next and all following waypoints:
+                waypoints = self.last_waypoints.waypoints
+                next_wp = self.get_closest_waypoint(self.last_pose, waypoints)
+                lane.waypoints = self.get_next_waypoints(waypoints, next_wp, next_wp + LOOKAHEAD_WPS)
 
-            self.final_waypoints_pub.publish(lane)
+                self.final_waypoints_pub.publish(lane)
+
+            rate.sleep()
 
     def pose_cb(self, msg):
         self.last_pose = msg
