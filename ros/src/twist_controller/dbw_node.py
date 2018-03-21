@@ -35,18 +35,6 @@ class DBWNode(object):
     def __init__(self):
         rospy.init_node('dbw_node')
 
-        # TODO: why are these here?!?
-        vehicle_mass = rospy.get_param('~vehicle_mass', 1736.35)
-        fuel_capacity = rospy.get_param('~fuel_capacity', 13.5)
-        brake_deadband = rospy.get_param('~brake_deadband', .1)
-        decel_limit = rospy.get_param('~decel_limit', -5)
-        accel_limit = rospy.get_param('~accel_limit', 1.)
-        wheel_radius = rospy.get_param('~wheel_radius', 0.2413)
-        wheel_base = rospy.get_param('~wheel_base', 2.8498)
-        steer_ratio = rospy.get_param('~steer_ratio', 14.8)
-        max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
-        max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
-
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd', SteeringCmd, queue_size=1)
         self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd', ThrottleCmd, queue_size=1)
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd', BrakeCmd, queue_size=1)
@@ -72,9 +60,9 @@ class DBWNode(object):
             if self.last_velocity is not None and self.last_twist_cmd is not None:
                 # Get predicted throttle, brake, and steering using `twist_controller`
                 # even when manual driving is active so that we update the controller state:
-                throttle, brake, steering = self.controller.control(self.last_twist_cmd,
+                throttle, brake, steering = self.controller.control(self.dbw_enabled,
                                                                     self.last_velocity,
-                                                                    self.dbw_enabled)
+                                                                    self.last_twist_cmd)
                 # But only publish if dbw is enabled
                 if self.dbw_enabled:
                     self.publish(throttle, brake, steering)
