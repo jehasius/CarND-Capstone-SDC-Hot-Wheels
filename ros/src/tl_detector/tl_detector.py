@@ -95,7 +95,8 @@ class TLDetector(object):
             self.state = state
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
-            light_wp = light_wp if state == TrafficLight.RED else -1
+            # NOTE: we change the default behavior here to consider braking even for yellow lights!
+            light_wp = light_wp if state != TrafficLight.GREEN else -1
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
@@ -176,7 +177,7 @@ class TLDetector(object):
             tl_idx = self.all_tl_indexes[res] if res < len(self.all_tl_indexes) else self.all_tl_indexes[0]
 
             # TODO: the following doesn't work properly when looping around the track!
-            if abs(tl_idx - car_idx) < 50:
+            if abs(tl_idx - car_idx) < 250:
                 # find that traffic light state in data given by /vehicle/traffic_lights:
                 min_idx_distance = len(self.waypoints) + 1
                 current_state = TrafficLight.UNKNOWN
@@ -188,7 +189,7 @@ class TLDetector(object):
                         min_idx_distance = (tl_idx - idx)
                         current_state = tl.state
 
-                rospy.logwarn('curr idx: {}  Next tl: {} state: {}'.format(car_idx, tl_idx, current_state))
+                # rospy.logwarn('curr idx: {}  Next tl: {} state: {}'.format(car_idx, tl_idx, current_state))
                 return tl_idx, current_state
 
 
