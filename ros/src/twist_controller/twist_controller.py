@@ -5,15 +5,18 @@ from yaw_controller import YawController
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704  # in m/s
 
-# TODO: Parameters need tuning!! Right now they're veeery fuzzy, but smooth!
-PID_P = 0.5
-PID_I = 0.001
-PID_D = 0.1
 
 # TODO: from the project submission page:
 # Be sure to check that this is working by testing with different values for kph velocity parameter in
 # /ros/src/waypoint_loader/launch/waypoint_loader.launch
 
+
+# TODO: Parameters need tuning!!
+# Right now they're veeery fuzzy, but smooth!
+# E.g. try max speed==140km/h -> It stays within the three lanes, but not very close to target.
+PID_P = 0.5
+PID_I = 0.001
+PID_D = 0.1
 
 
 class Controller(object):

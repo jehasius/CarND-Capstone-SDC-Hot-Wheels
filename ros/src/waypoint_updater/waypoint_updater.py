@@ -40,6 +40,7 @@ class WaypointUpdater(object):
         # rospy.Subscriber('/traffic_waypoint',  Int32, self.traffic_cb)
         # rospy.Subscriber('/obstacle_waypoint', Int32, self.obstacle_cb)
 
+
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         self.main_loop()
@@ -57,6 +58,8 @@ class WaypointUpdater(object):
                 waypoints = self.last_waypoints.waypoints
                 next_wp = self.get_closest_waypoint(self.last_pose, waypoints)
                 lane.waypoints = self.get_next_waypoints(waypoints, next_wp, next_wp + LOOKAHEAD_WPS)
+
+                # rospy.logwarn('Next wp: {} out of {}'.format(next_wp, len(waypoints)))
 
                 self.final_waypoints_pub.publish(lane)
 
