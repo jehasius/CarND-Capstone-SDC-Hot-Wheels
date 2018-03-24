@@ -10,15 +10,15 @@ class TLClassifier(object):
     def __init__(self):
         #TODO load classifier
         	
-        	ros_root = rospkg.get_ros_root()
+        ros_root = rospkg.get_ros_root()
 
-	        r = rospkg.RosPack()
-	        path = r.get_path('tl_detector')
-	        
-            self.model = load_model(path + '/light_classifier_model.h5') 
+        r = rospkg.RosPack()
+        path = r.get_path('tl_detector')
+        
+        self.model = load_model(path + '/light_classifier_model.h5')
 
-	        self.model._make_predict_function()
-            self.graph = tf.get_default_graph()
+        self.model._make_predict_function()
+        self.graph = tf.get_default_graph()
         
         #print(model)
         pass
@@ -35,22 +35,22 @@ class TLClassifier(object):
         """
         #TODO implement light color prediction
 
-           imrs = cv2.resize(image, (64, 64)) 
-           imrs = imrs.astype(float)
-           imrs = imrs / 255.0
-          
-           imrs = imrs[newaxis,:,:,:]
+        imrs = cv2.resize(image, (64, 64)) 
+        imrs = imrs.astype(float)
+        imrs = imrs / 255.0
+        
+        imrs = imrs[newaxis,:,:,:]
 
-           with self.graph.as_default():
-               preds = self.model.predict(imrs)
-            
-            predicted_class = np.argmax(preds, axis=1)
+        with self.graph.as_default():
+            preds = self.model.predict(imrs)
+        
+        predicted_class = np.argmax(preds, axis=1)
 
-            print('Predicted Class:' ,predicted_class[0])
-            lid = predicted_class[0]
-       
-            if(lid == 1):
+        print('Predicted Class:' ,predicted_class[0])
+        lid = predicted_class[0]
+    
+        if(lid == 1):
 
-                 return TrafficLight.RED
+                return TrafficLight.RED
 
         return TrafficLight.UNKNOWN
