@@ -52,8 +52,13 @@ class Controller(object):
             # TODO: track real time delta!
             time_delta = 0.02  # assumes 50Hz
 
-            # TODO: do we need to use linear.y as well to get a proper error?
-            error = last_twist_cmd.twist.linear.x - last_velocity.twist.linear.x
+            target_velocity = last_twist_cmd.twist.linear.x
+            #target_velocity = 30
+
+            # do we need to use linear.y as well to get a proper error?
+            # -> linear.y is always zero
+            #error = last_twist_cmd.twist.linear.x - last_velocity.twist.linear.x
+            error = target_velocity - last_velocity.twist.linear.x
 
             # TODO: should we use the given LowPassFilter here?
             throttle = self.pid.step(error, time_delta)
@@ -67,7 +72,7 @@ class Controller(object):
 
             # TODO: should we use the given LowPassFilter here?
             # TODO: do we need to calculate velocities with linear.y as well?
-            steering = self.yaw_controller.get_steering(last_twist_cmd.twist.linear.x,
+            steering = self.yaw_controller.get_steering(target_velocity,
                                                         last_twist_cmd.twist.angular.z,
                                                         last_velocity.twist.linear.x)
 
