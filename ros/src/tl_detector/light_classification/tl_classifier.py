@@ -49,8 +49,4 @@ class TLClassifier(object):
         print('Predicted Class:' ,predicted_class[0])
         lid = predicted_class[0]
     
-        if(lid == 1):
-
-                return TrafficLight.RED
-
-        return TrafficLight.UNKNOWN
+        return TrafficLight.UNKNOWN if lid == 1 else TrafficLight.RED
