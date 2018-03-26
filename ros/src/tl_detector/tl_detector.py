@@ -1,4 +1,5 @@
-cd import rospy
+#!/usr/bin/env python
+import rospy
 from std_msgs.msg import Int32
 from geometry_msgs.msg import PoseStamped, Pose
 from styx_msgs.msg import TrafficLightArray, TrafficLight
@@ -9,218 +10,201 @@ from light_classification.tl_classifier import TLClassifier
 import tf
 import cv2
 import yaml
-
 import math
-STATE_COUNT_THRESHOLD = 2
+
+from bisect import bisect_left
+
+
+class Position:
+    """ simple class that has a x and a y value """
+    def __init__(self, given):
+        self.x = given[0]
+        self.y = given[1]
+
+STATE_COUNT_THRESHOLD = 3
 
 class TLDetector(object):
-	def __init__(self):
-		rospy.init_node('tl_detector')
+    def __init__(self):
+        rospy.init_node('tl_detector')
 
-		self.pose = None
-		self.waypoints = None
-		self.camera_image = None
-		self.lights = []
-		self.slps = []
-                self.listener = None
-              
-		sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
-		self.waypoints = rospy.wait_for_message('/base_waypoints', Lane).waypoints # Only need to get base_waypoints once
-		'''
-		/vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
-		helps you acquire an accurate ground truth data source for the traffic light
-		classifier by sending the current color state of all traffic lights in the
-		simulator. When testing on the vehicle, the color state will not be available. You'll need to
-		rely on the position of the light and the camera image to predict it.
-		'''
-		sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size=1)
-		# Only need to get first message from /vehicle/traffic_lights once traffic light classifier is implemented
-		# self.lights = rospy.wait_for_message('/vehicle/traffic_lights', TrafficLightArray).lights 
+        self.pose = None
+        self.waypoints = None
+        self.camera_image = None
+        self.lights = []
 
-		config_string = rospy.get_param("/traffic_light_config")
-		self.config = yaml.load(config_string)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
-                
+        '''
+        /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
+        helps you acquire an accurate ground truth data source for the traffic light
+        classifier by sending the current color state of all traffic lights in the
+        simulator. When testing on the vehicle, the color state will not be available. You'll need to
+        rely on the position of the light and the camera image to predict it.
+        '''
+        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
+        rospy.Subscriber('/image_color', Image, self.image_cb)
 
-		# List of positions that correspond to the line to stop in front of a given intersection. Convert to more appropriate format
-		for slp in self.config['stop_line_positions']:
-			tl = TrafficLight()
-			tl.pose.pose.position.x, tl.pose.pose.position.y, tl.pose.pose.position.z = slp[0], slp[1], 0
-			self.slps.append( self.get_closest_waypoint(tl.pose.pose.position) )
+        # all traffic_light indexes will be calculated only once in process_traffic_lights():
+        self.config = yaml.load(rospy.get_param("/traffic_light_config"))
+        self.all_tl_indexes = None
 
-		sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
+        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
-		self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
+        self.bridge = CvBridge()
+        self.light_classifier = TLClassifier()
+        self.listener = tf.TransformListener()
 
-		self.bridge = CvBridge()
-                self.light_classifier = TLClassifier()
-                self.listener = tf.TransformListener()
+        self.state = TrafficLight.UNKNOWN
+        self.last_state = TrafficLight.UNKNOWN
+        self.last_wp = -1
+        self.state_count = 0
 
-		self.state = TrafficLight.UNKNOWN
-		self.last_state = TrafficLight.UNKNOWN
-		self.last_wp = -1
-		self.state_count = 0
+        rospy.spin()
 
-		rospy.spin()
+    def pose_cb(self, msg):
+        self.pose = msg
 
-	def pose_cb(self, msg):
-		self.pose = msg
+    def waypoints_cb(self, waypoints):
+        self.waypoints = waypoints.waypoints
 
-	def waypoints_cb(self, waypoints):
-		self.waypoints = waypoints.waypoints
+    def traffic_cb(self, msg):
+        # rospy.logwarn('got traffic lights of length: {}'.format(len(msg.lights)))
+        self.lights = msg.lights
 
-	def traffic_cb(self, msg):
-		self.lights = msg.lights
+    def image_cb(self, msg):
+        """Identifies red lights in the incoming camera image and publishes the index
+            of the waypoint closest to the red light's stop line to /traffic_waypoint
 
-	def image_cb(self, msg):
-		"""Identifies red lights in the incoming camera image and publishes the index
-			of the waypoint closest to the red light's stop line to /traffic_waypoint
-		Args:
-			msg (Image): image from car-mounted camera
-		"""
-		self.has_image = True
-		self.camera_image = msg
-		if not self.lights or not self.waypoints or not self.pose: pass
+        Args:
+            msg (Image): image from car-mounted camera
+
+        """
+        self.has_image = True
+        self.camera_image = msg
+        light_wp, state = self.process_traffic_lights()
+
+        '''
+        Publish upcoming red lights at camera frequency.
+        Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
+        of times till we start using it. Otherwise the previous stable state is
+        used.
+        '''
+        if self.state != state:
+            self.state_count = 0
+            self.state = state
+        elif self.state_count >= STATE_COUNT_THRESHOLD:
+            self.last_state = self.state
+            # NOTE: we change the default behavior here to consider braking even for yellow lights!
+            light_wp = light_wp if state != TrafficLight.GREEN else -1
+            self.last_wp = light_wp
+            self.upcoming_red_light_pub.publish(Int32(light_wp))
+        else:
+            self.upcoming_red_light_pub.publish(Int32(self.last_wp))
+        self.state_count += 1
+
+    def get_closest_waypoint_idx(self, position):
+        """Identifies the closest path waypoint to the given position
+            https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
+        Args:
+            position: (x,y) position to match a waypoint to
+
+        Returns:
+            int: index of the closest waypoint in self.waypoints
+
+        """
+
+        # TODO: maybe replace? It's almost a copy from the waypoint_updater code
+        if self.waypoints is not None:
+            raw_dist = lambda wp1, wp2: math.sqrt((wp1.x - wp2.x) ** 2 + (wp1.y - wp2.y) ** 2)
+            curr_dist_to_wp = lambda wp: raw_dist(position, wp.pose.pose.position)
+            closest_wp = min(self.waypoints, key=curr_dist_to_wp)
+            return self.waypoints.index(closest_wp)  # TODO: there should be a better way to do this!?!
+
+        return 0
+
+    def get_light_state(self, light):
+        """Determines the current color of the traffic light
+
+        Args:
+            light (TrafficLight): light to classify
+
+        Returns:
+            int: ID of traffic light color (specified in styx_msgs/TrafficLight)
+
+        """
+        if(not self.has_image):
+            self.prev_light_loc = None
+            return False
+
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+
+        #Get classification
+        return self.light_classifier.get_classification(cv_image)
+
+    def process_traffic_lights(self):
+        """Finds closest visible traffic light, if one exists, and determines its
+            location and color
+
+        Returns:
+            int: index of waypoint closes to the upcoming stop line for a traffic light (-1 if none exists)
+            int: ID of traffic light color (specified in styx_msgs/TrafficLight)
+
+        """
+        light = None
+
+        # List of positions that correspond to the line to stop in front of for a given intersection
+        if self.all_tl_indexes is None and self.waypoints is not None:
+            stop_line_positions = self.config['stop_line_positions']
+            self.all_tl_indexes = []
+            for stop_line in stop_line_positions:
+                wp_idx = self.get_closest_waypoint_idx(Position(stop_line))
+                self.all_tl_indexes.append(wp_idx % len(self.waypoints))
+            self.all_tl_indexes = sorted(self.all_tl_indexes)  # sort it for binary search!
+            rospy.logwarn('all_tl_indexes: {}'.format(self.all_tl_indexes))
 
 
+        #TODO find the closest visible traffic light (if one exists)
 
-		light_wp, state = self.process_traffic_lights()
-		if state == TrafficLight.UNKNOWN:
-			state_str = 'Green/Yellow'
-		else:
-			state_str = 'Red'
 
-		rospy.logwarn("Light wp: %s,  Light state: %s",light_wp, state_str)
+        # THIS USES A FAKE TRAFFIC LIGHT FINDER IN THE SIMULATOR
+        # Please replace this as soon as we have a real detector:
 
-		'''
-		Publish upcoming red lights at camera frequency.
-		Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
-		of times till we start using it. Otherwise the previous stable state is
-		used.
-		'''
-		# Does the detected state not match the previous state?
-		if self.state != state:
-			# Yes - they're different.  Reset the counter.
-			self.state_count = 0
-			self.state = state
-		elif self.state_count >= STATE_COUNT_THRESHOLD:
-			# Elseif the state count is above the persistence threshold
-			self.last_state = self.state
-			light_wp = light_wp if state == TrafficLight.RED else (-light_wp)
-			self.last_wp = light_wp
-			self.upcoming_red_light_pub.publish(Int32(light_wp))
-		else:
-			self.upcoming_red_light_pub.publish(Int32(self.last_wp))
-		self.state_count += 1
+        if self.pose is not None and self.all_tl_indexes is not None and self.lights is not None:
+            car_idx = self.get_closest_waypoint_idx(self.pose.pose.position)
+            # find next traffic light with binary search:
+            res = bisect_left(self.all_tl_indexes, car_idx)
+            tl_idx = self.all_tl_indexes[res] if res < len(self.all_tl_indexes) else self.all_tl_indexes[0]
 
-	def get_closest_waypoint(self, position):
-		"""Identifies the closest path waypoint to the given position
-			https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
-		Args:
-			pose (Pose): position to match a waypoint to
-		Returns:
-			int: index of the closest waypoint in self.waypoints
-		"""
-		return min( xrange(len(self.waypoints)), key = lambda p: self.distance_between_points(position, self.waypoints[p].pose.pose.position) )
+            # TODO: the following doesn't work properly when looping around the track!
+            if abs(tl_idx - car_idx) < 250:
+                # find that traffic light state in data given by /vehicle/traffic_lights:
+                min_idx_distance = len(self.waypoints) + 1
+                current_state = TrafficLight.UNKNOWN
+                for tl in self.lights:
+                    idx = self.get_closest_waypoint_idx(tl.pose.pose.position)
+                    idx = idx -30  # light-position is behind stop-position
+                    # rospy.logwarn('idx: {}  state: {}'.format(idx, tl.state))
+                    if tl_idx >= idx and (tl_idx - idx) < min_idx_distance:
+                        min_idx_distance = (tl_idx - idx)
+                        current_state = tl.state
 
-	def distance_between_points(self, a, b):
-		dist = math.sqrt( (a.x - b.x)**2 + (a.y - b.y)**2 + (a.z - b.z)**2 )
-		return dist
+                # rospy.logwarn('curr idx: {}  Next tl: {} state: {}'.format(car_idx, tl_idx, current_state))
+                return tl_idx, current_state
 
-	def project_to_image_plane(self, point_in_world):
-		"""Project point from 3D world coordinates to 2D camera image location
-		Args:
-			point_in_world (Point): 3D location of a point in the world
-		Returns:
-			x (int): x coordinate of target point in image
-			y (int): y coordinate of target point in image
-		"""
-		fx = self.config['camera_info']['focal_length_x']
-		fy = self.config['camera_info']['focal_length_y']
-		image_width = self.config['camera_info']['image_width']
-		image_height = self.config['camera_info']['image_height']
 
-		# get transform between pose of camera and world frame
-		trans = None
-		try:
-			now = rospy.Time.now()
-			self.listener.waitForTransform("/base_link",
-				  "/world", now, rospy.Duration(1.0))
-			(trans, rot) = self.listener.lookupTransform("/base_link",
-				  "/world", now)
+        # Please use this as soon as we have a real detector:
+        # if light:
+        #     state = self.get_light_state(light)
+        #     return light_wp, state
 
-		except (tf.Exception, tf.LookupException, tf.ConnectivityException):
-			rospy.logerr("Failed to find camera to map transform")
+        # self.waypoints = None  ## why would we reset static data?!?
+        return -1, TrafficLight.UNKNOWN
 
-		#TODO Use tranform and rotation to calculate 2D position of light in image
-
-		x = 0
-		y = 0
-
-		return (x, y)
-
-	def get_light_state(self, light):
-		"""Determines the current color of the traffic light
-		Args:
-			light (TrafficLight): light to classify
-		Returns:
-			int: ID of traffic light color (specified in styx_msgs/TrafficLight)
-		"""
-
-		#cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-		
-		if(not self.has_image):
-            		self.prev_light_loc = None
-            		return TrafficLight.RED
-
-        # fixing convoluted camera encoding...
-		if hasattr(self.camera_image, 'encoding'):
-		    self.attribute = self.camera_image.encoding
-		    if self.camera_image.encoding == '8UC3':
-			self.camera_image.encoding = "rgb8"
-		else:
-		    self.camera_image.encoding = 'rgb8'
-		cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
-
-                if (self.listener is not None):
-		        x, y = self.project_to_image_plane(light.pose.pose.position)
-
-		#TODO use light location to zoom in on traffic light in image
-
-		#Get classification
-		return self.light_classifier.get_classification(cv_image)
-
-	def process_traffic_lights(self):
-		"""Finds closest visible traffic light, if one exists, and determines its
-			location and color
-		Returns:
-			int: index of waypoint closest to the upcoming stop line for a traffic light (-1 if none exists)
-			int: ID of traffic light color (specified in styx_msgs/TrafficLight)
-		"""
-		light = None
-                if (self.waypoints is None):
-                        return -1, TrafficLight.UNKNOWN
-                
-		if(self.pose):
-			car_position = self.get_closest_waypoint(self.pose.pose.position)
-
-		#TODO find the closest visible traffic light (if one exists)
-		#Finding the closest light infront
-			func = lambda p: self.slps[p]-car_position if self.slps[p] >= car_position else len(self.waypoints) + self.slps[p]-car_position
-			idx = min(xrange(len(self.slps)), key = func)
-			light_wp = self.slps[idx]
-			#light = self.stop_line_positions[idx]
-			light = self.lights[idx]
-		if light:
-			state = light.state #Remove once traffic light classifier is implemented
-			state = self.get_light_state(light)
-			return light_wp, state
-		#self.waypoints = None
-		return -1, TrafficLight.UNKNOWN
 
 if __name__ == '__main__':
-	try:
-		TLDetector()
-	except rospy.ROSInterruptException:
-		rospy.logerr('Could not start traffic node.')
+    try:
+        TLDetector()
+    except rospy.ROSInterruptException:
+        rospy.logerr('Could not start traffic node.')
 
