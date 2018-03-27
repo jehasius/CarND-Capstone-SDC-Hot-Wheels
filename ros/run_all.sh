@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/bash
 
 catkin_make
 source devel/setup.sh
