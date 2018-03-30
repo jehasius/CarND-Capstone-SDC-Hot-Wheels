@@ -56,7 +56,7 @@ class Controller(object):
         wheel_radius = rospy.get_param('~wheel_radius', 0.2413)
         self.torque = (vehicle_mass + fuel_capacity * GAS_DENSITY) * wheel_radius
 
-        # TODO: how to use brake_deadband properly?
+        # DONE: how to use brake_deadband properly?
         self.brake_deadband = rospy.get_param('~brake_deadband', .1)
 
         self.last_time = rospy.get_time()
@@ -103,6 +103,9 @@ class Controller(object):
             if current_vel < 0.1 and target_velocity < 0.001:
                 throttle = 0
                 brake = 400
+
+            if brake < self.brake_deadband:
+                brake = 0
 
             # DONE: should we use the given LowPassFilter here? (it wasn't used in the walkthrough)
             # DONE: do we need to calculate velocities with linear.y as well? (linear.y is always zero)
