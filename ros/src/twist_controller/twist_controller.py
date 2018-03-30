@@ -7,12 +7,12 @@ GAS_DENSITY = 2.858
 ONE_MPH = 0.44704  # in m/s
 
 
-# TODO: from the project submission page:
+# DONE: from the project submission page:
 # Be sure to check that this is working by testing with different values for kph velocity parameter in
 # /ros/src/waypoint_loader/launch/waypoint_loader.launch
 
 
-# TODO: Parameters need tuning!!
+# DONE: Parameters need tuning!!
 # Right now they're veeery fuzzy, but smooth!
 # E.g. try max speed==140km/h -> It stays within the three lanes, but not very close to target.
 PID_P = 0.3
@@ -20,7 +20,7 @@ PID_I = 0.1
 PID_D = 0.0
 PID_MIN = 0 # Minimum throttle value
 PID_MAX = 1.0 # Maximum throttle value
-# TODO: make max = 0.2
+# TODO: make max = 0.2 for final submission?
 
 
 
