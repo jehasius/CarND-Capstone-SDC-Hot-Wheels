@@ -46,7 +46,9 @@ class TLClassifier(object):
         
         predicted_class = np.argmax(preds, axis=1)
 
-        print('Predicted Class:' ,predicted_class[0])
-        lid = predicted_class[0]
-    
-        return TrafficLight.UNKNOWN if lid == 1 else TrafficLight.RED
+        # print('Predicted Class:', predicted_class[0])
+
+        choices = {0: TrafficLight.RED,
+                   1: TrafficLight.YELLOW,
+                   2: TrafficLight.GREEN}
+        return choices.get(predicted_class[0], TrafficLight.GREEN)

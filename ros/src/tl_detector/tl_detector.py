@@ -13,12 +13,18 @@ import yaml
 
 import math
 
-STATE_COUNT_THRESHOLD = 2
+import os
+import rospkg
+image_path = rospkg.RosPack().get_path('tl_detector') + '/light_classification/Traffic_light/aaa_new_samples/'
 
+
+STATE_COUNT_THRESHOLD = 2
 
 class TLDetector(object):
     def __init__(self):
         rospy.init_node('tl_detector')
+
+        print(image_path)
 
         self.pose = None
         self.waypoints = None
@@ -28,7 +34,7 @@ class TLDetector(object):
 
         self.listener = None
 
-        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
         self.waypoints = rospy.wait_for_message('/base_waypoints', Lane).waypoints  # Only need to get base_waypoints once
         '''
         /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
@@ -37,7 +43,7 @@ class TLDetector(object):
         simulator. When testing on the vehicle, the color state will not be available. You'll need to
         rely on the position of the light and the camera image to predict it.
         '''
-        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size=1)
+        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size=1)
         # Only need to get first message from /vehicle/traffic_lights once traffic light classifier is implemented
         # self.lights = rospy.wait_for_message('/vehicle/traffic_lights', TrafficLightArray).lights
 
@@ -50,7 +56,7 @@ class TLDetector(object):
             tl.pose.pose.position.x, tl.pose.pose.position.y, tl.pose.pose.position.z = slp[0], slp[1], 0
             self.slps.append(self.get_closest_waypoint(tl.pose.pose.position))
 
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
+        rospy.Subscriber('/image_color', Image, self.image_cb)
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
@@ -105,8 +111,11 @@ class TLDetector(object):
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             # Elseif the state count is above the persistence threshold
             self.last_state = self.state
-            # TODO: we need to recognize yellow as bad state as well!
-            light_wp = light_wp if state == TrafficLight.RED else -1
+
+            light_wp = light_wp
+            if state == TrafficLight.UNKNOWN or state == TrafficLight.GREEN:
+                light_wp = -1
+
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
@@ -193,7 +202,22 @@ class TLDetector(object):
             # TODO use light location to zoom in on traffic light in image
 
             # Get classification
-            return self.light_classifier.get_classification(cv_image)
+
+            pred = self.light_classifier.get_classification(cv_image)
+
+            # # # Here we automatically store wrongly classified images into a sub-folder for later re-training:
+            # if pred != light.state:
+            #     folder = {TrafficLight.RED: 'red/',
+            #               TrafficLight.YELLOW: 'yellow/',
+            #               TrafficLight.GREEN: 'green/'}
+            #     filepath = image_path + folder[light.state]
+            #     path, dirs, files = os.walk(filepath).next()
+            #     filename = filepath + 'wrong_' + str(len(files)).zfill(5) + '.png'
+            #     RGB_img = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            #     cv2.imwrite(filename, RGB_img)
+            #     rospy.logwarn("Light state: %s,   Light detected: %s", light.state, pred)
+
+            return pred
 
 
     def process_traffic_lights(self):
@@ -217,13 +241,14 @@ class TLDetector(object):
                                                                                               self.slps[p] - car_position
             idx = min(xrange(len(self.slps)), key=func)
             light_wp = self.slps[idx]
-            # light = self.stop_line_positions[idx]
-            light = self.lights[idx]
+            if light_wp >= car_position and (light_wp - car_position) <= 150:
+                light = self.lights[idx]
+
         if light:
             fake_state = light.state  # Remove once traffic light classifier is implemented
             state = self.get_light_state(light)
 
-            rospy.logwarn("Light wp: %s,  Light state: %s,   Light detected: %s", light_wp, fake_state, state)
+            # rospy.logwarn("Light wp: %s,  Light state: %s,   Light detected: %s", light_wp, fake_state, state)
 
             return light_wp, state
 
