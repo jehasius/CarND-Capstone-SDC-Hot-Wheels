@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
+import numpy as np
 import rospy
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from styx_msgs.msg import Lane, Waypoint
+from scipy.spatial import KDTree
 from std_msgs.msg import Int32
 from copy import deepcopy
 
@@ -51,10 +53,13 @@ class WaypointUpdater(object):
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
+        self.waypoints_2d = None
+        self.waypoint_tree = None
+
         self.main_loop()
 
     def main_loop(self):
-        rate = rospy.Rate(10)  # define a 10Hz timer
+        rate = rospy.Rate(50)  # define a 50Hz timer, according to the walkthrough the waypoint_follower runs at 30Hz
         while not rospy.is_shutdown():
             # check that we received callbacks 'pose_cb' and 'waypoints_cb':
             if self.last_waypoints is not None and self.last_pose is not None:
@@ -80,6 +85,9 @@ class WaypointUpdater(object):
     def waypoints_cb(self, msg):
         # Note: according to the classroom this will be published once only!! (always use a copy of waypoints!)
         self.last_waypoints = msg
+        if not self.waypoints_2d:
+            self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] for waypoint in msg.waypoints]
+            self.waypoint_tree = KDTree( self.waypoints_2d )
 
     def traffic_cb(self, msg):
         self.next_tl_idx = msg.data
@@ -115,18 +123,36 @@ class WaypointUpdater(object):
 
     def get_closest_waypoint(self, pose, waypoints):
         # get closest waypoint:
-        curr_dist_to_wp = lambda wp: self.raw_dist(pose.pose.position, wp.pose.pose.position)
-        closest_wp = min(waypoints, key=curr_dist_to_wp)
-        closest_idx = waypoints.index(closest_wp)  # TODO: there should be a better way to do this!?!
+        #curr_dist_to_wp = lambda wp: self.raw_dist(pose.pose.position, wp.pose.pose.position)
+        #closest_wp = min(waypoints, key=curr_dist_to_wp)
+        #closest_idx = waypoints.index(closest_wp)  # TODO: there should be a better way to do this!?!
 
         # check if closest_wp is behind us:
-        next_wp_idx = self.sanitize_wp_index(closest_idx+1)
-        dist_between_next_wps = self.distance(waypoints, closest_idx, closest_idx+1)  # don't sanitize here
-        dist_to_next_wp = curr_dist_to_wp(waypoints[next_wp_idx])
+        #next_wp_idx = self.sanitize_wp_index(closest_idx+1)
+        #dist_between_next_wps = self.distance(waypoints, closest_idx, closest_idx+1)  # don't sanitize here
+        #dist_to_next_wp = curr_dist_to_wp(waypoints[next_wp_idx])
 
         # TODO: Will need to make this check more robust when we're deviating from the path.
         #       e.g. current position is exactly perpendicular next to clostest_wp
-        return next_wp_idx if dist_to_next_wp < dist_between_next_wps else closest_idx
+        #return next_wp_idx if dist_to_next_wp < dist_between_next_wps else closest_idx
+
+        x = pose.pose.position.x
+        y = pose.pose.position.y
+        closest_idx = self.waypoint_tree.query([x,y],1)[1]
+
+        # Check if closest is ahead or behind vehicle
+        closest_coord = self.waypoints_2d[closest_idx]
+        prev_coord = self.waypoints_2d[closest_idx - 1]
+
+        # Equation for hyperplane through closest_coords
+        cl_vect = np.array(closest_coord)
+        prev_vect = np.array(prev_coord)
+        pos_vect = np.array([x,y])
+
+        val = np.dot(cl_vect - prev_vect, pos_vect-cl_vect)
+        if (val > 0):
+            closest_idx = (closest_idx + 1) % len(self.waypoints_2d)
+        return closest_idx
 
 
     def check_need_brake(self, waypoints, start_wp, end_wp):
