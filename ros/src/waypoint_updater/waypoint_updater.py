@@ -150,8 +150,8 @@ class WaypointUpdater(object):
                 need_brake = True
                 self.braking_for_tl_idx = self.next_tl_idx  # remember that we started braking for this traffic light
 
-            rospy.logwarn('idx: {0} before: {1}, cur_vel: {2:5.2f} -> brake: {3} , max/min: [{4},{5}]'.format(
-                start_wp, tl_idx, curr_vel, int(need_brake), max_brake_dist, min_brake_dist))
+            # rospy.logwarn('idx: {0} before: {1}, cur_vel: {2:5.2f} -> brake: {3} , max/min: [{4},{5}]'.format(
+            #     start_wp, tl_idx, curr_vel, int(need_brake), max_brake_dist, min_brake_dist))
 
         return need_brake, end_wp
 

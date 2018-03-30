@@ -90,12 +90,6 @@ class TLDetector(object):
         if not self.lights or not self.waypoints or not self.pose: pass
 
         light_wp, state = self.process_traffic_lights()
-        if state == TrafficLight.UNKNOWN:
-            state_str = 'Green/Yellow'
-        else:
-            state_str = 'Red'
-
-        rospy.logwarn("Light wp: %s,  Light state: %s", light_wp, state_str)
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -111,7 +105,8 @@ class TLDetector(object):
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             # Elseif the state count is above the persistence threshold
             self.last_state = self.state
-            light_wp = light_wp if state == TrafficLight.RED else (-light_wp)
+            # TODO: we need to recognize yellow as bad state as well!
+            light_wp = light_wp if state == TrafficLight.RED else -1
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
@@ -217,7 +212,7 @@ class TLDetector(object):
             car_position = self.get_closest_waypoint(self.pose.pose.position)
 
             # TODO find the closest visible traffic light (if one exists)
-            # Finding the closest light infront
+            # Finding the closest light in front
             func = lambda p: self.slps[p] - car_position if self.slps[p] >= car_position else len(self.waypoints) + \
                                                                                               self.slps[p] - car_position
             idx = min(xrange(len(self.slps)), key=func)
@@ -225,8 +220,11 @@ class TLDetector(object):
             # light = self.stop_line_positions[idx]
             light = self.lights[idx]
         if light:
-            state = light.state  # Remove once traffic light classifier is implemented
+            fake_state = light.state  # Remove once traffic light classifier is implemented
             state = self.get_light_state(light)
+
+            rospy.logwarn("Light wp: %s,  Light state: %s,   Light detected: %s", light_wp, fake_state, state)
+
             return light_wp, state
 
         # self.waypoints = None
