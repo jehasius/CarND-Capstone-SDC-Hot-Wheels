@@ -27,8 +27,6 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200  # Number of waypoints we will publish. You can change this number
-#MAX_DECEL = 0.5
-MAX_DECEL = 1.0
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -201,8 +199,10 @@ class WaypointUpdater(object):
         next_waypoints = waypoints[start_wp:end_wp]
         
         if need_brake and tl_wp >= 0 and tl_wp <= end_wp and tl_wp >= start_wp:
-            if self.log_counter > 25:
+            show_debug = False
+            if self.log_counter > 10:
                 self.log_counter = 0
+                show_debug = True
                 #rospy.logwarn('start_wp: {0} tl_wp: {1}, end_wp: {2}'.format(start_wp, tl_wp, end_wp))
             self.log_counter = self.log_counter + 1
 
@@ -212,9 +212,18 @@ class WaypointUpdater(object):
                 p.pose = wp.pose
                 stop_idx = max( tl_wp - start_wp - 2, 0 )
                 dist = self.distance(next_waypoints, i, stop_idx)
-                vel = math.sqrt( 2 * MAX_DECEL * dist )
+                vel = 2.8 * math.sqrt( 1.5 * dist ) - 2
+                # some more try's
+                #vel2 = ((dist + 1)/60.0) * wp.twist.twist.linear.x
+                #vel3 = (1.0 / 4.0) * math.sqrt( 0.2 * (dist) ) * wp.twist.twist.linear.x;
+                #vel3 = vel3 - (0.1 * wp.twist.twist.linear.x)
+                #if show_debug:
+                #    rospy.logwarn('    vel: {0}  vel2: {3}  vel3: {4}  dist: {1}  wp.twist.twist.linear.x: {2}'.format(vel, dist, wp.twist.twist.linear.x, vel2, vel3))
+                #    show_debug = False
+                #vel = vel3
                 if vel < 1:
                     vel = 0
+                    show_debug = False
                 p.twist.twist.linear.x = min( vel, wp.twist.twist.linear.x)
                 temp.append( p )
             next_waypoints = temp
