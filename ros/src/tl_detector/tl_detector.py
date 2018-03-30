@@ -105,8 +105,11 @@ class TLDetector(object):
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             # Elseif the state count is above the persistence threshold
             self.last_state = self.state
-            # TODO: we need to recognize yellow as bad state as well!
-            light_wp = light_wp if state == TrafficLight.RED else -1
+
+            light_wp = light_wp
+            if state == TrafficLight.UNKNOWN or state == TrafficLight.GREEN:
+                light_wp = -1
+
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
@@ -217,8 +220,9 @@ class TLDetector(object):
                                                                                               self.slps[p] - car_position
             idx = min(xrange(len(self.slps)), key=func)
             light_wp = self.slps[idx]
-            # light = self.stop_line_positions[idx]
-            light = self.lights[idx]
+            if light_wp >= car_position and (light_wp - car_position) <= 150:
+                light = self.lights[idx]
+
         if light:
             fake_state = light.state  # Remove once traffic light classifier is implemented
             state = self.get_light_state(light)
