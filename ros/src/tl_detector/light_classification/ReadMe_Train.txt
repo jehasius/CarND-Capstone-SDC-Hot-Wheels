@@ -1,6 +1,8 @@
 To re-train the model inside the udacity VM:
 
-1) get image sources from https://www.dropbox.com/sh/w7qha7sqtzen48a/AABPBrTlwkKAL-JLb6OinW3Xa?dl=0 
+1) get image sources from 
+https://wetransfer.com/downloads/92a7c3574164e7c583750d1014db0ddc20180330170925/ee75bac280d4b73d28c5fc1c3729cded20180330170925/405cc8
+
 and save in folder /ros/src/tl_detector/light_classification/Traffic_light
 
 
