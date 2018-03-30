@@ -27,11 +27,14 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200  # Number of waypoints we will publish. You can change this number
-
+#MAX_DECEL = 0.5
+MAX_DECEL = 1.0
 
 class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
+
+        self.log_counter = 1
 
         # Get the max-velocity set in /ros/src/waypoint_loader/launch/waypoint_loader.launch
         self.max_velocity = rospy.get_param('/waypoint_loader/velocity', 40.0)  # in km/h
@@ -59,7 +62,7 @@ class WaypointUpdater(object):
         self.main_loop()
 
     def main_loop(self):
-        rate = rospy.Rate(50)  # define a 50Hz timer, according to the walkthrough the waypoint_follower runs at 30Hz
+        rate = rospy.Rate(10)  # define a 50Hz timer, according to the walkthrough the waypoint_follower runs at 30Hz
         while not rospy.is_shutdown():
             # check that we received callbacks 'pose_cb' and 'waypoints_cb':
             if self.last_waypoints is not None and self.last_pose is not None:
@@ -103,6 +106,9 @@ class WaypointUpdater(object):
 
     def get_waypoint_velocity(self, waypoint):
         return waypoint.twist.twist.linear.x
+
+    def get_waypoint_velocity(self, waypoints, waypoint):
+        return waypoints[waypoint].twist.twist.linear.x
 
     def set_waypoint_velocity(self, waypoints, waypoint, velocity):
         waypoints[waypoint].twist.twist.linear.x = velocity
@@ -176,8 +182,8 @@ class WaypointUpdater(object):
                 need_brake = True
                 self.braking_for_tl_idx = self.next_tl_idx  # remember that we started braking for this traffic light
 
-            rospy.logwarn('idx: {0} before: {1}, cur_vel: {2:5.2f} -> brake: {3} , max/min: [{4},{5}]'.format(
-                start_wp, tl_idx, curr_vel, int(need_brake), max_brake_dist, min_brake_dist))
+            #rospy.logwarn('idx: {0} before: {1}, cur_vel: {2:5.2f} -> brake: {3} , max/min: [{4},{5}]'.format(
+            #    start_wp, tl_idx, curr_vel, int(need_brake), max_brake_dist, min_brake_dist))
 
         return need_brake, end_wp
 
@@ -185,27 +191,57 @@ class WaypointUpdater(object):
     def get_next_waypoints(self, waypoints, start_wp, end_wp):
 
         # Check if we need to brake and determine the new end_waypoint in that case:
-        need_brake, end_wp = self.check_need_brake(waypoints, start_wp, end_wp)
+        need_brake, tl_wp = self.check_need_brake(waypoints, start_wp, end_wp)
 
-        # NOTE: we need to take copies of /base_waypoints as they will be published exactly once!
-        next_waypoints = []
-        for idx in range(start_wp, end_wp):
-            next_waypoints.append(deepcopy(waypoints[self.sanitize_wp_index(idx)]))
+        # TODO: reactivate, deactivated for testing
+        need_brake = True
 
-        curr_vel = self.last_velocity  # cached for whole method
+        tl_wp = self.next_tl_idx
 
-        if need_brake:
-            if start_wp == end_wp:
-                # wait until we get a green light:
-                self.set_waypoint_velocity(next_waypoints, 0, 0.0)
-            else:
-                num_wps = len(next_waypoints)
-                # adjust all velocities to end up at 0 at the last waypoint:
-                for i, wp in enumerate(next_waypoints):
-                    adj = curr_vel/4.0  # adjustment for very high speeds
-                    self.set_waypoint_velocity(next_waypoints, (num_wps - 1) - i, max(0, i * curr_vel / num_wps - adj))
+        next_waypoints = waypoints[start_wp:end_wp]
+        
+        if need_brake and tl_wp >= 0 and tl_wp <= end_wp and tl_wp >= start_wp:
+            if self.log_counter > 25:
+                self.log_counter = 0
+                #rospy.logwarn('start_wp: {0} tl_wp: {1}, end_wp: {2}'.format(start_wp, tl_wp, end_wp))
+            self.log_counter = self.log_counter + 1
+
+            temp = []
+            for i, wp in enumerate(next_waypoints):
+                p = Waypoint()
+                p.pose = wp.pose
+                stop_idx = max( tl_wp - start_wp - 2, 0 )
+                dist = self.distance(next_waypoints, i, stop_idx)
+                vel = math.sqrt( 2 * MAX_DECEL * dist )
+                if vel < 1:
+                    vel = 0
+                p.twist.twist.linear.x = min( vel, wp.twist.twist.linear.x)
+                temp.append( p )
+            next_waypoints = temp
 
         return next_waypoints
+
+        # need_brake, end_wp = self.check_need_brake(waypoints, start_wp, end_wp)
+
+        # # NOTE: we need to take copies of /base_waypoints as they will be published exactly once!
+        # next_waypoints = []
+        # for idx in range(start_wp, end_wp):
+        #     next_waypoints.append(deepcopy(waypoints[self.sanitize_wp_index(idx)]))
+
+        # curr_vel = self.last_velocity  # cached for whole method
+
+        # if need_brake:
+        #     if start_wp == end_wp:
+        #         # wait until we get a green light:
+        #         self.set_waypoint_velocity(next_waypoints, 0, 0.0)
+        #     else:
+        #         num_wps = len(next_waypoints)
+        #         # adjust all velocities to end up at 0 at the last waypoint:
+        #         for i, wp in enumerate(next_waypoints):
+        #             adj = curr_vel/4.0  # adjustment for very high speeds
+        #             self.set_waypoint_velocity(next_waypoints, (num_wps - 1) - i, max(0, i * curr_vel / num_wps - adj))
+
+        # return next_waypoints
 
 
 if __name__ == '__main__':

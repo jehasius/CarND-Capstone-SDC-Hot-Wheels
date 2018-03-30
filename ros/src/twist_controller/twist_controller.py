@@ -20,6 +20,7 @@ PID_I = 0.1
 PID_D = 0.0
 PID_MIN = 0 # Minimum throttle value
 PID_MAX = 1.0 # Maximum throttle value
+PID_LIMIT_INTEGRAL = 1
 # TODO: make max = 0.2 for final submission?
 
 
@@ -30,7 +31,7 @@ class Controller(object):
         # Setup PID controller:
         self.decel_limit = rospy.get_param('~decel_limit', -5)
         self.accel_limit = rospy.get_param('~accel_limit', 1.)
-        self.pid = PID(PID_P, PID_I, PID_D, PID_MIN, PID_MAX)
+        self.pid = PID(PID_P, PID_I, PID_D, PID_LIMIT_INTEGRAL, PID_MIN, PID_MAX)
 
         # Setup low pass filter
         tau = 0.5
@@ -93,16 +94,21 @@ class Controller(object):
             #    throttle = 0.0
 
             # from walkthrough            
-            if throttle < 0.1 and error < 0:
+            if throttle < 0.05 and error < 1:
                 throttle = 0.0
                 decel = max( error, self.decel_limit )
                 brake = abs(decel) * self.torque
                 #brake = -throttle * self.torque
+                
+                # to prevent windup
+                #self.pid.reset()
 
             # hold the car in place when stopped
-            if current_vel < 0.1 and target_velocity < 0.001:
+            if current_vel < 1 and target_velocity < 0.001:
                 throttle = 0
                 brake = 400
+                # to prevent windup
+                self.pid.reset()
 
             if brake < self.brake_deadband:
                 brake = 0

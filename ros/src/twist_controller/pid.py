@@ -4,12 +4,13 @@ MAX_NUM = float('inf')
 
 
 class PID(object):
-    def __init__(self, kp, ki, kd, mn=MIN_NUM, mx=MAX_NUM):
+    def __init__(self, kp, ki, kd, limit_integral, mn=MIN_NUM, mx=MAX_NUM):
         self.kp = kp
         self.ki = ki
         self.kd = kd
         self.min = mn
         self.max = mx
+        self.limit_integral = limit_integral
 
         self.int_val = self.last_error = 0.
 
@@ -20,6 +21,9 @@ class PID(object):
 
         integral = self.int_val + error * sample_time;
         derivative = (error - self.last_error) / sample_time;
+
+        # prevent windup
+        integral = min( max( integral, -self.limit_integral ), self.limit_integral )
 
         val = self.kp * error + self.ki * integral + self.kd * derivative;
 
