@@ -70,8 +70,12 @@ class Controller(object):
             time_delta = current_time - self.last_time
             self.last_time = current_time
 
-            target_velocity = last_twist_cmd.twist.linear.x
+            # abs because the target velocity from the waypoint_follower seems to flip
+            # between positive and negative velocities on large deviations
+            target_velocity = abs(last_twist_cmd.twist.linear.x)
+
             current_vel = self.vel_lpf.filt(last_velocity.twist.linear.x)
+            
             error = target_velocity - current_vel
 
             throttle = self.pid.step(error, time_delta)
