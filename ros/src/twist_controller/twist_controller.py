@@ -10,14 +10,9 @@ PID_P = 0.3
 PID_I = 0.1
 PID_D = 0.2
 PID_MIN = 0  # Minimum throttle value
-PID_MAX = 1.0  # Maximum throttle value
+PID_MAX = 1.0  # Maximum throttle value for simulator
+# PID_MAX = 0.2  # Maximum throttle value from walkthrough due to more sensitive behavior on Carla
 PID_LIMIT_INTEGRAL = 1
-
-# DONE: make max = 0.2 for final submission?
-#       Please clarify why this might be needed.
-#       It was at 0.2 in the walkthrough, but I actually don't really see why.
-#       I would guess that that makes for a smoother ride in the real vehicle.
-#       Especially when going to 10kph with full throttle.
 
 
 class Controller(object):
@@ -38,16 +33,8 @@ class Controller(object):
         steer_ratio = rospy.get_param('~steer_ratio', 14.8)
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
-        
         min_speed = 1.0
-        # DONE: With these steering values we can always drive at max-speed (even in those big curves) by cutting
-        #       the lanes pro-actively. Maybe we should use them? (or delete these lines?)
-        #       -> they are set by the launch file which is a different one for carla
-        #       leaving the lines in for testing/playing around
-        # max_lat_accel = 10
-        # max_steer_angle = 45
-        # steer_ratio = 30
-        
+
         self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
 
         # From https://discussions.udacity.com/t/412339 :

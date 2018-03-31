@@ -126,10 +126,8 @@ class WaypointUpdater(object):
 
         # Calculate projection of vector (closest_wp->current position) onto vector (prev_wp->closest_wp)
         # If projection is positive it means that that we passed closest_wp already!
-        # TODO: Will need to make this check more robust when we're deviating from the path.
-        #       e.g. current position is exactly perpendicular next to closest_wp
         val = np.dot(cl_vect - prev_vect, pos_vect-cl_vect)
-        if (val > 0):  # TODO: maybe (val > -eps) instead?
+        if (val > 0):
             closest_idx = (closest_idx + 1) % len(self.waypoints_2d)
         return closest_idx
 
