@@ -6,23 +6,15 @@ from lowpass import LowPassFilter
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704  # in m/s
 
-
-# DONE: from the project submission page:
-# Be sure to check that this is working by testing with different values for kph velocity parameter in
-# /ros/src/waypoint_loader/launch/waypoint_loader.launch
-
-
-# DONE: Parameters need tuning!!
-# Right now they're veeery fuzzy, but smooth!
-# E.g. try max speed==140km/h -> It stays within the three lanes, but not very close to target.
 PID_P = 0.3
 PID_I = 0.1
 PID_D = 0.0
-PID_MIN = 0 # Minimum throttle value
-PID_MAX = 1.0 # Maximum throttle value
+PID_MIN = 0  # Minimum throttle value
+PID_MAX = 1.0  # Maximum throttle value
 PID_LIMIT_INTEGRAL = 1
-# TODO: make max = 0.2 for final submission?
 
+# TODO: make max = 0.2 for final submission?
+#       Please clarify why this might be needed.
 
 
 class Controller(object):
@@ -36,7 +28,7 @@ class Controller(object):
         # Setup low pass filter
         tau = 0.5
         ts = 0.02
-        self.vel_lpf = LowPassFilter( tau, ts )
+        self.vel_lpf = LowPassFilter(tau, ts)
 
         # Setup YawController:
         wheel_base = rospy.get_param('~wheel_base', 2.8498)
@@ -45,9 +37,11 @@ class Controller(object):
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
         
         min_speed = 1.0
-        #max_steer_angle = 45
-        #max_lat_accel = 10
-        #steer_ratio = 30
+        # TODO: With these steering values we can always drive at max-speed (even in those big curves) by cutting
+        #       the lanes pro-actively. Maybe we should use them? (or delete these lines?)
+        # max_lat_accel = 10
+        # max_steer_angle = 45
+        # steer_ratio = 30
         
         self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
 
@@ -57,9 +51,7 @@ class Controller(object):
         wheel_radius = rospy.get_param('~wheel_radius', 0.2413)
         self.torque = (vehicle_mass + fuel_capacity * GAS_DENSITY) * wheel_radius
 
-        # DONE: how to use brake_deadband properly?
         self.brake_deadband = rospy.get_param('~brake_deadband', .1)
-
         self.last_time = rospy.get_time()
 
     def control(self, dbw_enabled, last_velocity, last_twist_cmd):
@@ -68,40 +60,23 @@ class Controller(object):
 
         if dbw_enabled:
 
-            # DONE: track real time delta!
+            # track real time delta:
             current_time = rospy.get_time()
             time_delta = current_time - self.last_time
             self.last_time = current_time
 
             target_velocity = last_twist_cmd.twist.linear.x
-            #target_velocity = 30
-            
-            current_vel = last_velocity.twist.linear.x
-            current_vel = self.vel_lpf.filt( current_vel )
-
-            # DONE: do we need to use linear.y as well to get a proper error? (linear.y is always zero)
+            current_vel = self.vel_lpf.filt(last_velocity.twist.linear.x)
             error = target_velocity - current_vel
 
-
-            # DONE: should we use the given LowPassFilter here?
             throttle = self.pid.step(error, time_delta)
-
-            # From classroom -> '5.DBW Node':
-            # Note that throttle values passed to publish should be in the range 0 to 1, throttle of 1 means full
-            # Brake values passed to publish should be in units of torque (N*m).
-            #if throttle < 0.0:
-            #    brake = -throttle * self.torque
-            #    throttle = 0.0
-
-            # from walkthrough            
+            # from walkthrough:
             if throttle < 0.05 and error < 1:
                 throttle = 0.0
-                decel = max( error, self.decel_limit )
+                decel = max(error, self.decel_limit)
                 brake = abs(decel) * self.torque
-                #brake = -throttle * self.torque
-                
-                # to prevent windup
-                #self.pid.reset()
+                # # to prevent windup
+                # self.pid.reset()
 
             # hold the car in place when stopped
             if current_vel < 1 and target_velocity < 0.001:
@@ -113,8 +88,6 @@ class Controller(object):
             if brake < self.brake_deadband:
                 brake = 0
 
-            # DONE: should we use the given LowPassFilter here? (it wasn't used in the walkthrough)
-            # DONE: do we need to calculate velocities with linear.y as well? (linear.y is always zero)
             steering = self.yaw_controller.get_steering(target_velocity,
                                                         last_twist_cmd.twist.angular.z,
                                                         last_velocity.twist.linear.x)
