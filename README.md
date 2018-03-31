@@ -1,5 +1,5 @@
 # CarND-Capstone-SDC-Hot-Wheels
----
+
 1. Introduction
 2. Team
 3. Setup and Compilation
@@ -16,14 +16,14 @@ Do do the ROS framework for these nodes as well as a version of the simulator th
 ## 2. Team
 For this project it was crucial to work as a groups of up to 5 students with one team lead for the group. For communication we used a private Slack channel. To coordinate and divide the work a Trello Board was used and the source code was shared by this repository. The consist of the following members (in alphabetical order).
 
-* K. Daubner(Germany)
-* J. Hampe(Germany)
-* B. Khalid(Dubai)
+* K. Daubner (Germany)
+* J. Hampe (Germany)
+* B. Khalid (Dubai)
 * A. Menge, Team Lead (Germany)
-* T. Steinert(Germany)
+* T. Steinert (Germany)
 
 ## 3. Setup and Compilation
-You can find detailed information about the dependencies and compilation in chapter [5.Original Udacity README](#Udacity).
+You can find detailed information about the dependencies and compilation in chapter [4.Original Udacity README](#Udacity).
 
 <a name="Udacity"></a>
 ## 4. Original Udacity README
