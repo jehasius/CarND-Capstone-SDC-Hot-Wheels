@@ -148,15 +148,6 @@ class WaypointUpdater(object):
                 stop_idx = max(tl_wp - start_wp - 2, 0)
                 dist = self.distance(next_waypoints, i, stop_idx)
                 vel = 2.8 * math.sqrt(1.5 * dist) - 2
-                # # TODO: remove the following unused code?
-                # # some more try's
-                # vel2 = ((dist + 1)/60.0) * wp.twist.twist.linear.x
-                # vel3 = (1.0 / 4.0) * math.sqrt( 0.2 * (dist) ) * wp.twist.twist.linear.x;
-                # vel3 = vel3 - (0.1 * wp.twist.twist.linear.x)
-                # if (self.log_counter % 10 == 0):
-                #    rospy.logwarn('    vel: {0}  vel2: {3}  vel3: {4}  dist: {1}  wp.twist.twist.linear.x: {2}'.format(vel, dist, wp.twist.twist.linear.x, vel2, vel3))
-                # vel = vel3
-
                 if vel < 1:
                     vel = 0
 
