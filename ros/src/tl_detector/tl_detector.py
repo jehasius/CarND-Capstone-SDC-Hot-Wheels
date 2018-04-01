@@ -186,12 +186,13 @@ class TLDetector(object):
             pred = self.light_classifier.get_classification(cv_image)
 
             # # Here we automatically store wrongly classified images into a sub-folder for later re-training:
-            # if pred != light.state:
+            # if pred != light.state:  # NOTE: this doesn't work for no-light predictions!
             #     image_path = rospkg.RosPack().get_path('tl_detector') \
-            #                  + '/light_classification/Traffic_light/aaa_new_samples/'
+            #                  + '/light_classification/Traffic_light_sim_only/aaa_new_samples/'
             #     folder = {TrafficLight.RED: 'red/',
             #               TrafficLight.YELLOW: 'yellow/',
-            #               TrafficLight.GREEN: 'green/'}
+            #               TrafficLight.GREEN: 'green/',
+            #               TrafficLight.UNKNOWN: 'none/'}
             #     filepath = image_path + folder[light.state]
             #     path, dirs, files = os.walk(filepath).next()
             #     filename = filepath + 'wrong_' + str(len(files)).zfill(5) + '.png'

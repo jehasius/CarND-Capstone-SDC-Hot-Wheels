@@ -3,6 +3,13 @@
 build
 devel
 
+
+data/*.bag
+
+ros/src/tl_detector/light_classification/.ipynb_checkpoints/
+ros/src/tl_detector/light_classification/Traffic_light*/
+
+
 profile.tmp
 
 *.idea

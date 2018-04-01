@@ -45,5 +45,6 @@ class TLClassifier(object):
 
         choices = {0: TrafficLight.RED,
                    1: TrafficLight.YELLOW,
-                   2: TrafficLight.GREEN}
+                   2: TrafficLight.GREEN,
+                   3: TrafficLight.UNKNOWN}
         return choices.get(predicted_class[0], TrafficLight.GREEN)
