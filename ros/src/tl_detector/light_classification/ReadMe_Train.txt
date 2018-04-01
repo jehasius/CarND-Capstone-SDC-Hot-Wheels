@@ -1,6 +1,6 @@
 To re-train the model inside the udacity VM:
 
-1) get image sources from <currently uploading - will update with new WeTransfer link soon>
+1) get image sources from: https://we.tl/lqH9SavwjK
 
 and save the folders of the zip-file to: <repo-directory>/ros/src/tl_detector/light_classification/
 
