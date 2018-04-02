@@ -145,7 +145,7 @@ class WaypointUpdater(object):
                 p.pose = wp.pose
                 stop_idx = max(tl_wp - start_wp - 2, 0)
                 dist = self.distance(next_waypoints, i, stop_idx)
-                vel = 2.8 * math.sqrt(1.5 * dist) - 2
+                vel = 1.0 * math.sqrt(1.0 * dist) - 0.0
                 if vel < 1:
                     vel = 0
 
