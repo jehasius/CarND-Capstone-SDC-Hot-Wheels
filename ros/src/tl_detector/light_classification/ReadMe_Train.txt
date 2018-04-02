@@ -19,7 +19,7 @@ pip install keras==1.2.2
 jupyter notebook  (open the browser -> find Train.ipynb and run the cell)
 
 
-5) cp the model to the proper place:
+5) copy the model to the proper place:
 
 cp <repo-directory>/ros/src/tl_detector/light_classification/{path-name}light_classifier_model.h5 ./ros/src/tl_detector/light_classifier_model.h5
 
