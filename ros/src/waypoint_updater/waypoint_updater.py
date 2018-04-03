@@ -145,7 +145,9 @@ class WaypointUpdater(object):
                 p.pose = wp.pose
                 stop_idx = max(tl_wp - start_wp - 2, 0)
                 dist = self.distance(next_waypoints, i, stop_idx)
-                vel = 1.0 * math.sqrt(1.0 * dist) - 0.0
+                # vel = 2.8 * math.sqrt(1.5 * dist) - 2    # late stopping and rather harsh
+                # vel = 1.0 * math.sqrt(1.0 * dist) - 0.0  # very early decrease of speed and rather soft
+                vel = 2.0 * math.sqrt(1.0 * dist) - 1      # something in between (letting go of the accelerator pedal)
                 if vel < 1:
                     vel = 0
 

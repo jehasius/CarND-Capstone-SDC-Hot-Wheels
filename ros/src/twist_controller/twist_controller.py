@@ -11,7 +11,7 @@ PID_I = 0.1
 PID_D = 0.2
 PID_MIN = 0  # Minimum throttle value
 #PID_MAX = 1.0  # Maximum throttle value for simulator
-PID_MAX = 0.2  # Maximum throttle value from walkthrough due to more sensitive behavior on Carla
+PID_MAX = 0.6  # Maximum throttle value due to more sensitive behavior on Carla (measured against reference rosbag)
 PID_LIMIT_INTEGRAL = 1
 
 
